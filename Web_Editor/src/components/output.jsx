@@ -1,35 +1,22 @@
-import React, { useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
 
 const Output = () => {
-  const iframeRef = useRef(null);
-  const location = useLocation();
-  const { code, files } = location.state || { code: '', files: {} };
+  const [htmlContent, setHtmlContent] = useState('');
 
   useEffect(() => {
-    if (iframeRef.current) {
-      const document = iframeRef.current.contentDocument;
-      document.open();
-      
-      // Create a complete HTML document with external CSS and JS
-      const completeHTML = code
-        .replace(/<link rel="stylesheet" href="([^"]+)">/g, (match, fileName) => {
-          const cssContent = files[fileName];
-          return `<style>${cssContent}</style>`;
-        })
-        .replace(/<script src="([^"]+)"><\/script>/g, (match, fileName) => {
-          const jsContent = files[fileName];
-          return `<script>${jsContent}</script>`;
-        });
-
-      document.write(completeHTML);
-      document.close();
+    const storedHtml = localStorage.getItem('outputHtml');
+    if (storedHtml) {
+      setHtmlContent(storedHtml);
     }
-  }, [code, files]);
+  }, []);
 
   return (
-    <div style={{ height: '100vh' }}>
-      <iframe ref={iframeRef} title="output" style={{ width: '100%', height: '100%', border: 'none' }} />
+    <div style={{ width: '100%', height: '100vh' }}>
+      <iframe
+        title="Output"
+        style={{ width: '100%', height: '100%' }}
+        srcDoc={htmlContent}
+      />
     </div>
   );
 };

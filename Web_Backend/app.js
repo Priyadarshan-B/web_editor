@@ -1,57 +1,84 @@
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
+const fs = require('fs-extra');
 const path = require('path');
 
 const app = express();
-const PORT = 3001;
-
 app.use(cors());
 app.use(express.json());
 
-// Ensure user_data directory exists
-const userDataPath = path.join(__dirname, 'user_data');
-if (!fs.existsSync(userDataPath)) {
-  fs.mkdirSync(userDataPath);
-}
+const basePath = path.join(__dirname, 'files');
 
-app.post('/create-folder', (req, res) => {
-  const folderName = req.body.folderName;
-  const folderPath = path.join(userDataPath, folderName);
-  if (!fs.existsSync(folderPath)) {
-    fs.mkdirSync(folderPath);
-    res.status(200).send('Folder created successfully');
-  } else {
-    res.status(400).send('Folder already exists');
-  }
+const studentData = {
+  rollNumber: '12345'
+};
+
+const studentFolderPath = path.join(basePath, studentData.rollNumber);
+fs.ensureDirSync(studentFolderPath);
+
+const getFileStructure = (dirPath) => {
+  const files = fs.readdirSync(dirPath);
+  return files.map(file => {
+    const filePath = path.join(dirPath, file);
+    const isDirectory = fs.lstatSync(filePath).isDirectory();
+    return {
+      name: file,
+      path: filePath.replace(basePath, ''),
+      type: isDirectory ? 'folder' : 'file',
+      children: isDirectory ? getFileStructure(filePath) : [],
+    };
+  });
+};
+
+app.get('/api/structure', (req, res) => {
+  res.json(getFileStructure(basePath));
 });
 
-app.post('/save-file', (req, res) => {
-  const { folderName, fileName, content } = req.body;
-  const folderPath = path.join(userDataPath, folderName);
-  if (fs.existsSync(folderPath)) {
-    const filePath = path.join(folderPath, fileName);
-    fs.writeFileSync(filePath, content, 'utf8');
-    res.status(200).send('File saved successfully');
-  } else {
-    res.status(404).send('Folder not found');
-  }
+app.get('/api/file', (req, res) => {
+  const filePath = path.join(basePath, req.query.path);
+  const content = fs.readFileSync(filePath, 'utf8');
+  res.send(content);
 });
 
-app.get('/get-folder-contents/:folderName', (req, res) => {
-  const folderName = req.params.folderName;
-  const folderPath = path.join(userDataPath, folderName);
-  if (fs.existsSync(folderPath)) {
-    const files = fs.readdirSync(folderPath).map(fileName => ({
-      fileName,
-      content: fs.readFileSync(path.join(folderPath, fileName), 'utf8')
-    }));
-    res.status(200).json(files);
-  } else {
-    res.status(404).send('Folder not found');
-  }
+app.post('/api/file', (req, res) => {
+  const { path: filePath, content } = req.body;
+  const fullPath = path.join(basePath, filePath);
+  fs.writeFileSync(fullPath, content);
+  res.send('File saved');
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+app.post('/api/create-folder', (req, res) => {
+  const { path: folderPath } = req.body;
+  const dirPath = path.join(basePath, folderPath);
+  fs.ensureDirSync(dirPath);
+  res.send('Folder created');
+});
+
+app.post('/api/create-file', (req, res) => {
+  const { path: filePath } = req.body;
+  const fullPath = path.join(basePath, filePath);
+  fs.writeFileSync(fullPath, '');
+  res.send('File created');
+});
+
+app.post('/api/delete-item', (req, res) => {
+    const { path: itemPath } = req.body;
+    const fullPath = path.join(basePath, itemPath);
+    try {
+      fs.removeSync(fullPath);
+      res.send('Item deleted');
+    } catch (error) {
+      res.status(500).send('Error deleting item');
+    }
+  });
+  
+app.post('/api/student-login', (req, res) => {
+  const { rollNumber } = req.body;
+  const studentFolderPath = path.join(basePath, rollNumber);
+  fs.ensureDirSync(studentFolderPath);
+  res.json({ message: `Folder created for roll number: ${rollNumber}` });
+});
+
+app.listen(5000, () => {
+  console.log('Server running on port 5000');
 });
